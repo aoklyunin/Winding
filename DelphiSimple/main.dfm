@@ -1,0 +1,218 @@
+object Form1: TForm1
+  Left = 307
+  Top = 235
+  Width = 681
+  Height = 522
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -11
+  Font.Name = 'MS Sans Serif'
+  Font.Style = []
+  OldCreateOrder = False
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  PixelsPerInch = 96
+  TextHeight = 13
+  object Label1: TLabel
+    Left = 424
+    Top = 80
+    Width = 13
+    Height = 13
+    Caption = 'Kp'
+  end
+  object Label2: TLabel
+    Left = 424
+    Top = 112
+    Width = 9
+    Height = 13
+    Caption = 'Ki'
+  end
+  object Label3: TLabel
+    Left = 424
+    Top = 128
+    Width = 26
+    Height = 13
+    Caption = 'KpSp'
+  end
+  object Label4: TLabel
+    Left = 424
+    Top = 152
+    Width = 22
+    Height = 13
+    Caption = 'KiSp'
+  end
+  object Label5: TLabel
+    Left = 424
+    Top = 64
+    Width = 25
+    Height = 13
+    Caption = #1057#1088#1077#1079
+  end
+  object LogIn: TMemo
+    Left = 8
+    Top = 8
+    Width = 329
+    Height = 193
+    ScrollBars = ssVertical
+    TabOrder = 0
+  end
+  object LogOut: TMemo
+    Left = 8
+    Top = 208
+    Width = 329
+    Height = 193
+    ScrollBars = ssVertical
+    TabOrder = 1
+  end
+  object Edit1: TEdit
+    Left = 344
+    Top = 80
+    Width = 73
+    Height = 21
+    TabOrder = 2
+    Text = '15'
+  end
+  object Edit2: TEdit
+    Left = 344
+    Top = 104
+    Width = 73
+    Height = 21
+    TabOrder = 3
+    Text = '0.4'
+  end
+  object Edit3: TEdit
+    Left = 344
+    Top = 128
+    Width = 73
+    Height = 21
+    TabOrder = 4
+    Text = '1.8'
+  end
+  object Edit4: TEdit
+    Left = 344
+    Top = 152
+    Width = 73
+    Height = 21
+    TabOrder = 5
+    Text = '0.1'
+  end
+  object Button1: TButton
+    Left = 344
+    Top = 184
+    Width = 145
+    Height = 25
+    Caption = #1050#1086#1101#1092#1092#1080#1094#1080#1077#1085#1090#1099' '#1088#1077#1075#1091#1083#1103#1090#1086#1088#1072
+    TabOrder = 6
+    OnClick = Button1Click
+  end
+  object Edit5: TEdit
+    Left = 344
+    Top = 56
+    Width = 73
+    Height = 21
+    TabOrder = 7
+    Text = '500'
+  end
+  object Button2: TButton
+    Left = 352
+    Top = 272
+    Width = 75
+    Height = 25
+    Caption = #1057#1090#1086#1087
+    TabOrder = 8
+    OnClick = Button2Click
+  end
+  object Button3: TButton
+    Left = 352
+    Top = 304
+    Width = 75
+    Height = 25
+    Caption = 'Test'
+    TabOrder = 9
+    OnClick = Button3Click
+  end
+  object ComPort1: TComPort
+    BaudRate = br9600
+    Port = 'COM2'
+    Parity.Bits = prEven
+    StopBits = sbOneStopBit
+    DataBits = dbEight
+    Events = [evRxChar, evTxEmpty, evRxFlag, evRing, evBreak, evCTS, evDSR, evError, evRLSD, evRx80Full]
+    FlowControl.OutCTSFlow = False
+    FlowControl.OutDSRFlow = False
+    FlowControl.ControlDTR = dtrDisable
+    FlowControl.ControlRTS = rtsDisable
+    FlowControl.XonXoffOut = False
+    FlowControl.XonXoffIn = False
+    StoredProps = [spBasic]
+    TriggersOnRxChar = True
+    OnRxChar = ComPort1RxChar
+    Left = 80
+    Top = 408
+  end
+  object Timer1: TTimer
+    Interval = 100
+    OnTimer = Timer1Timer
+    Left = 1080
+    Top = 8
+  end
+  object ComPort2: TComPort
+    BaudRate = br19200
+    Port = 'COM1'
+    Parity.Bits = prNone
+    StopBits = sbOneStopBit
+    DataBits = dbEight
+    Events = [evRxChar, evTxEmpty, evRxFlag, evRing, evBreak, evCTS, evDSR, evError, evRLSD, evRx80Full]
+    FlowControl.OutCTSFlow = False
+    FlowControl.OutDSRFlow = False
+    FlowControl.ControlDTR = dtrDisable
+    FlowControl.ControlRTS = rtsDisable
+    FlowControl.XonXoffOut = False
+    FlowControl.XonXoffIn = False
+    StoredProps = [spBasic]
+    TriggersOnRxChar = True
+    OnRxChar = ComPort2RxChar
+    Left = 1016
+    Top = 8
+  end
+  object ComPort3: TComPort
+    BaudRate = br19200
+    Port = 'COM23'
+    Parity.Bits = prNone
+    StopBits = sbOneStopBit
+    DataBits = dbEight
+    Events = [evRxChar, evTxEmpty, evRxFlag, evRing, evBreak, evCTS, evDSR, evError, evRLSD, evRx80Full]
+    FlowControl.OutCTSFlow = False
+    FlowControl.OutDSRFlow = False
+    FlowControl.ControlDTR = dtrDisable
+    FlowControl.ControlRTS = rtsDisable
+    FlowControl.XonXoffOut = False
+    FlowControl.XonXoffIn = False
+    StoredProps = [spBasic]
+    TriggersOnRxChar = True
+    OnRxChar = ComPort3RxChar
+    Left = 1048
+    Top = 8
+  end
+  object OpenDialog1: TOpenDialog
+    Left = 1112
+    Top = 8
+  end
+  object srv: TServerSocket
+    Active = False
+    Port = 40000
+    ServerType = stNonBlocking
+    OnAccept = srvAccept
+    OnClientDisconnect = srvClientDisconnect
+    OnClientRead = srvClientRead
+    Left = 16
+    Top = 408
+  end
+  object Timer2: TTimer
+    Interval = 10
+    OnTimer = Timer2Timer
+    Left = 416
+    Top = 8
+  end
+end

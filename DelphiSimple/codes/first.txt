@@ -1,0 +1,14 @@
+ N2 X4.0   A1    T1
+ N3 X8.0  A1    T1
+ N4 X12.0  A1    T1
+ N5 X12    A1     T1
+ N6 X16   A2    T2
+ N9 X12.0  A1    T1
+ N11 X2.0   A1    T1
+ N14 X-2.0   A1    T1
+ N15 X-12.0  A1    T1
+ N18 X-16 A2    T2
+ N20 X-12  A1     T1
+ N21 X-12.0  A1   T1
+ N22 X-8.0  A1   T1
+ N23 X-4.0  A1   T1
