@@ -298,7 +298,11 @@ begin
     curWCntTK := 0;
     Form1.CheckBox4.Checked :=false;
   end;
-
+  if (flgWind)and(wCnt>=curWCnt) then
+  begin
+    curWCnt := 0;
+    Form1.CheckBox3.Checked :=false;
+  end;
 
 
   if (flgWind)and(Form1.CheckBox3.Checked) then
@@ -508,7 +512,7 @@ procedure TForm1.Button1Click(Sender: TObject);
 begin
   flgWindEnable := true;
   curWCnt :=  StrToInt(Edit13.Text);
-  //curWCntTK := StrToInt( Edit23.Text);
+  curWCntTK := StrToInt( Edit23.Text);
   startTK;
   CheckBox3.Checked := true;
   CheckBox4.Checked := true;

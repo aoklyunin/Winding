@@ -43,6 +43,7 @@ type
     procedure driveEmulation;
     function getLogStr:string;
     procedure setKReg(ckp,cki,ckpSp,ckiSp:real);
+    procedure smartControl(dir : integer; sp : integer);
   public
    posStart : real;
    speed : real;
@@ -77,6 +78,7 @@ type
     ieSp : real;
     upSp : real;
     uiSp : real;
+    pressTime : integer;
   end;
 
   TForm1 = class(TForm)
@@ -85,22 +87,21 @@ type
     ComPort2: TComPort;
     ComPort3: TComPort;
     OpenDialog1: TOpenDialog;
-    LogIn: TMemo;
     srv: TServerSocket;
-    LogOut: TMemo;
     Timer2: TTimer;
-    Edit1: TEdit;
-    Edit2: TEdit;
-    Edit3: TEdit;
-    Edit4: TEdit;
-    Button1: TButton;
-    Label1: TLabel;
-    Label2: TLabel;
-    Label3: TLabel;
-    Label4: TLabel;
-    Edit5: TEdit;
-    Label5: TLabel;
     Button2: TButton;
+    Button4: TButton;
+    Button5: TButton;
+    Edit1: TEdit;
+    Label1: TLabel;
+    Button1: TButton;
+    Button3: TButton;
+    Edit2: TEdit;
+    Label2: TLabel;
+    Button7: TButton;
+    Edit3: TEdit;
+    Label3: TLabel;
+    Button6: TButton;
     procedure ComPort1RxChar(Sender: TObject; Count: Integer);
 
     procedure Timer1Timer(Sender: TObject);
@@ -117,8 +118,13 @@ type
     procedure processTCP(s : string);
     procedure sendStatsTCP();
     procedure Timer2Timer(Sender: TObject);
-    procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
+    procedure Button3Click(Sender: TObject);
+    procedure Button7Click(Sender: TObject);
+    procedure Button6Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -154,6 +160,12 @@ var
   fglSrEnable : boolean = false;
 
   uDirection : integer = DIRECT_LEFT;
+
+  movingBL : integer = DIRECT_STOP;
+  movingTK : integer = DIRECT_STOP;
+  movingLK : integer = DIRECT_STOP;
+  lastPress : integer = 0;
+
 implementation
 
 uses Math;
@@ -173,23 +185,6 @@ begin
  result:=digits[InByte shr 4]+digits[InByte and $0F];
 end;
 
-
-procedure logCom(flgIn : boolean; msg : string; comNum : integer);
-var i : integer;
-    str : string;
-begin
-   str := 'Com ' + IntTOStr(comNum);
-   if flgIn then
-    str := str + '> '
-   else
-    str := str + '< ';
-   for i := 1 to length(msg) do
-    str:= str + ByteToHex(ord(msg[i]))+' ';
-  { if flgIn then
-     Form1.LogIn.Lines.Add(str)
-   else
-     Form1.LogOut.Lines.Add(str)     }
-end;
 
 function CDrive.getRelativePos:real;
 begin
@@ -237,6 +232,7 @@ begin
   pos := 0;
   flgStopped := false;
   stopDrive;
+  lastPress := 0;
 end;
 
 function CDRIve.toString:string;
@@ -257,77 +253,16 @@ begin
   //writeln('stopDrive');
  end
  else
-  if flgUControl then
   begin
     if (direct<>DIRECT_STOP) then
     begin
       moveDrive(direct,round(speedStar));
-      if name = 'TK' then
-      begin
-        if (maDrive.isPressed(PIN_LTG))then
-        begin
-          driveTK.changeDirection(DIRECT_RIGHT);
-          uDirection :=   DIRECT_RIGHT;
-        end;
-        if (maDrive.isPressed(PIN_RTG))then
-        begin
-          driveTK.changeDirection(DIRECT_LEFT);
-          uDirection :=   DIRECT_LEFT;
-        end;
-      end;
     end
     else
       stopDrive;
    // writeln('uControl '+IntTOStr(direct)+' '+intToStr(round(speedStar)));
   end
-  else
-  begin
-    e := (posStar - (pos-posStart));
-    up := e*kp;
-    ie := fifo[1];
-    for i := 2 to FIFO_LENGTH do
-    begin
-      ie := ie + fifo[i];
-      fifo[i-1] := fifo[i];
-    end;
-    fifo[FIFO_LENGTH] := e;
-   // if abs(e)<10 then
-   // fglSrEnable := true;
-    //ui := ie*ki;
-    tmpu := up+ui;
-    //if (fglSrEnable) then
-   // begin
-    if (tmpu>sr) then tmpu :=  sr;
-     if (tmpu<-sr) then tmpu := -sr;
-  //  end;
-     eSp := (speedStar+tmpu) - speed;
-     upSp := eSp*kpSp;
 
-     if name='BL' then
-     begin
-      uSp := speedStar*4.4;
-      if (speedStar>0) then dir := DIRECT_RIGHT
-      else  dir := DIRECT_LEFT;
-     end;
-     if name = 'TK' then
-     begin
-      uSp := speedStar*1.45;
-      if (speedStar>0) then dir := DIRECT_RIGHT
-      else  dir := DIRECT_LEFT;
-     end;
-     if name = 'LK' then
-     begin
-      uSp := speedStar*4.85;
-      if (speedStar>0) then dir := DIRECT_LEFT
-      else  dir := DIRECT_RIGHT;
-     end;
-     uSp := uSp + upSp {+ uiSp};
-
-    u := abs(round(uSp));
-    if (u<0) then u := 0;
-   // writeln('ui '+FloatToStr(ui)+' up '+FloatToStr(up)+' p='+FloatToStr(pos-posStart)+' ps='+FloatToStr(posStar));
-    moveDrive(dir,u);
-  end;
 end;
 
 procedure CDrive.stopDrive;
@@ -349,6 +284,34 @@ end;
   direct :=  DIRECT_STOP;
   prevU := 0;
   flgStopped := true;
+end;
+
+procedure CDrive.smartControl(dir : integer; sp : integer);
+begin
+  case dir of
+    DIRECT_LEFT:
+    begin
+      if (direct=DIRECT_RIGHT)  then
+        stopDrive
+      else
+      begin
+        direct := DIRECT_LEFT;
+        speedStar := sp;
+      end;
+    end;
+    DIRECT_RIGHT:
+    begin
+      if (direct=DIRECT_LEFT)  then
+        stopDrive
+      else
+      begin
+        direct := DIRECT_RIGHT;
+        speedStar := sp;
+      end;
+    end;
+    DIRECT_STOP:
+      stopDrive;
+  end;
 end;
 
 procedure CDrive.moveDrive(direction:integer; cspeed : integer);
@@ -385,86 +348,56 @@ begin
      driveLK.changeDirection(DIRECT_LEFT);
  if (mDrive.isPressed(PIN_RLG))then
      driveLK.changeDirection(DIRECT_RIGHT);    }
- if (maDrive.isPressed(PIN_LTG))then
-     driveTK.changeDirection(DIRECT_RIGHT);
- if (maDrive.isPressed(PIN_RTG))then
-     driveTK.changeDirection(DIRECT_LEFT);
+// if (maDrive.isPressed(PIN_LTG))then
+//     driveTK.changeDirection(DIRECT_RIGHT);
+// if (maDrive.isPressed(PIN_RTG))then
+ //    driveTK.changeDirection(DIRECT_LEFT);
 
-
- if ( not maDrive.isPressed(PIN_RUN))   then
+ if ( not maDrive.isPressed(PIN_RUN))  then
  begin
-
-    driveBL.speedStar := curU;
-    driveTK.speedStar := curU;
-    driveLK.speedStar := curU;
    // кнопки баллона
+   if(driveBL.pressTime>3) then
    if (maDrive.isPressed(PIN_LBL) ) then
    begin
-     driveBL.direct := DIRECT_LEFT;
-
-     //writeln('Left');
+      driveBL.pressTime := 0;
+      driveBL.smartControl(DIRECT_LEFT,StrToInt(Form1.Edit1.Text));
    end
    else if (maDrive.isPressed(PIN_RBL) ) then
    begin
-     driveBL.direct := DIRECT_RIGHT;
-     //driveBL.speedStar := 1000;
-    // writeln('Right');
-   end
-   else
-   begin
-     driveBL.direct := DIRECT_STOP;
-    // driveBL.speedStar := 0;
-  //   writeln('Stop');
+     driveBL.smartControl(DIRECT_RIGHT,StrToInt(Form1.Edit1.Text));
+     driveBL.pressTime := 0;
    end;
 
-   // кнопки верхней каретки
+   if(driveTK.pressTime>3) then
    if (maDrive.isPressed(PIN_LTK) ) then
-     driveTK.direct := DIRECT_LEFT
+   begin
+      driveTK.pressTime := 0;
+      driveTK.smartControl(DIRECT_LEFT,StrToInt(Form1.Edit2.Text));
+   end
    else if (maDrive.isPressed(PIN_RTK) ) then
-     driveTK.direct := DIRECT_RIGHT
-   else
-     driveTK.direct := DIRECT_STOP;
-   // кнопки нижней каретки
+   begin
+     driveTK.smartControl(DIRECT_RIGHT,StrToInt(Form1.Edit2.Text));
+     driveTK.pressTime := 0;
+   end;
+
+   if(driveLK.pressTime>3) then
    if (maDrive.isPressed(PIN_LLK) ) then
-     driveLK.direct := DIRECT_LEFT
+   begin
+      driveLK.pressTime := 0;
+      driveLK.smartControl(DIRECT_LEFT,StrToInt(Form1.Edit3.Text));
+   end
    else if (maDrive.isPressed(PIN_RLK) ) then
-     driveLK.direct := DIRECT_RIGHT
-   else
-     driveLK.direct := DIRECT_STOP;
+   begin
+     driveLK.smartControl(DIRECT_RIGHT,StrToInt(Form1.Edit3.Text));
+     driveLK.pressTime := 0;
+   end;
  end
  else
  begin
-      case flgRunInNullPoint of
-        1 :
-         if (maDrive.isPressed(PIN_RLG))then
-         begin
-             driveLK.direct := DIRECT_RIGHT;
-             driveLK.speedStar := 2000;
-             flgRunInNullPoint := 2;
-         end
-         else
-         begin
-            driveLK.direct := DIRECT_LEFT;
-             driveLK.speedStar := 2000;
-         end;
-        2:
-        if (maDrive.isPressed(PIN_LLG))then
-        begin
-          driveLK.direct := DIRECT_STOP;
-          driveLK.posStart := driveLK.pos;
-          driveBL.posStart := driveBL.pos;
-          driveTK.posStart := driveTK.pos;
-          flgRunInNullPoint := 0;
-        end
-        else
-        begin
-         driveLK.direct := DIRECT_RIGHT;
-         driveLK.speedStar := 2000;
-        end;
-      end;
-    end;
-
-//    caption :=  driveBl.toString;
+   driveBL.direct := DIRECT_STOP;
+   driveBL.direct := DIRECT_STOP;
+   driveBL.direct := DIRECT_STOP;
+ end;
 end;
 
 
@@ -478,7 +411,7 @@ begin
   for i := 1 to Count do
        s:= s+ ByteToHex(ord(str[i]))+' ';
  // logCom(true,s,COM_NUM_3);
-end;      
+end;
 
 
 procedure CDrive.driveEmulation;
@@ -539,7 +472,7 @@ begin
   driveBL.processDrive;
   driveTK.processDrive;
   driveLK.processDrive;
-  writeln(f,driveBL.getLogStr+ ' ' +  driveTK.getLogStr+ ' ' + driveLK.getLogStr);
+ // writeln(f,driveBL.getLogStr+ ' ' +  driveTK.getLogStr+ ' ' + driveLK.getLogStr);
   sleep(30);
   ComPort2.WriteStr(str);
  // sleep(10);
@@ -573,6 +506,9 @@ begin
 
   DecimalSeparator  := '.';
 
+    driveBL.flgUControl := true;
+      driveTK.flgUControl := true;
+      driveLK.flgUControl := true;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
@@ -629,7 +565,7 @@ begin
       flgFF := false;
     end;
 end;
-+
+
 
 procedure TForm1.ComPort3RxChar(Sender: TObject; Count: Integer);
 var str,s: String;
@@ -757,12 +693,9 @@ end;
 procedure TForm1.Timer2Timer(Sender: TObject);
 begin
  sendStatsTCP;
-end;
-
-procedure TForm1.Button1Click(Sender: TObject);
-begin
-   driveLK.setKReg(StrToFloat(Edit1.text),StrToFloat(Edit2.text),StrToFloat(Edit3.text),StrToFloat(Edit4.text));
-   sr := StrToFloat(edit5.text);
+ inc(driveBl.pressTime);
+ inc(driveTK.pressTime);
+ inc(driveLK.pressTime);
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);
@@ -770,6 +703,36 @@ begin
  driveBL.stopDrive;
  driveTK.stopDrive;
  driveLK.stopDrive;
+end;
+
+procedure TForm1.Button4Click(Sender: TObject);
+begin
+  driveBl.smartControl(DIRECT_LEFT,StrToInt(Edit1.Text));
+end;
+         
+procedure TForm1.Button5Click(Sender: TObject);
+begin
+   driveBl.smartControl(DIRECT_RIGHT,StrToInt(Edit1.Text));
+end;
+
+procedure TForm1.Button1Click(Sender: TObject);
+begin
+   driveTK.smartControl(DIRECT_LEFT,StrToInt(Edit2.Text));
+end;
+
+procedure TForm1.Button3Click(Sender: TObject);
+begin
+  driveTK.smartControl(DIRECT_RIGHT,StrToInt(Edit2.Text));
+end;
+
+procedure TForm1.Button7Click(Sender: TObject);
+begin
+  driveLK.smartControl(DIRECT_RIGHT,StrToInt(Edit3.Text));
+end;
+
+procedure TForm1.Button6Click(Sender: TObject);
+begin
+  driveLK.smartControl(DIRECT_LEFT,StrToInt(Edit3.Text));
 end;
 
 end.

@@ -222,7 +222,7 @@ object Form1: TForm1
     Width = 73
     Height = 21
     TabOrder = 4
-    Text = '650'
+    Text = '1300'
   end
   object Edit6: TEdit
     Left = 16
@@ -230,7 +230,7 @@ object Form1: TForm1
     Width = 73
     Height = 21
     TabOrder = 5
-    Text = '580'
+    Text = '1300'
   end
   object Edit7: TEdit
     Left = 240
@@ -328,7 +328,7 @@ object Form1: TForm1
     Width = 33
     Height = 21
     TabOrder = 17
-    Text = '100'
+    Text = '0'
   end
   object Edit14: TEdit
     Left = 256
@@ -437,7 +437,7 @@ object Form1: TForm1
     Width = 57
     Height = 21
     TabOrder = 30
-    Text = '45'
+    Text = '27'
   end
   object Edit23: TEdit
     Left = 16
@@ -445,7 +445,7 @@ object Form1: TForm1
     Width = 33
     Height = 21
     TabOrder = 31
-    Text = '6'
+    Text = '4'
   end
   object Button10: TButton
     Left = 520
@@ -462,7 +462,7 @@ object Form1: TForm1
     Width = 57
     Height = 21
     TabOrder = 33
-    Text = '55000'
+    Text = '75000'
   end
   object CheckBox3: TCheckBox
     Left = 408

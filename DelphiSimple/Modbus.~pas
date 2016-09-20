@@ -106,7 +106,7 @@ type
     flgCalcCBB : boolean;
     algMode : integer;
     val : integer;
-    pins : array[1..16] of boolean;
+    pins : array[0..26] of boolean;
     function getAnswerString(a:VMessage):string;
     procedure processInData();
   end;
