@@ -1,0 +1,526 @@
+unit Unit2;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, openGL,ExtCtrls;
+
+const MAX_POINT_CNT = 100;
+      tMat=0.00001;{ограничиваем числа, близкие к нолю, на них делить}
+      MAX_LENGTH = 5000;
+type
+  TForm2 = class(TForm)
+    Timer1: TTimer;
+    procedure FormCreate(Sender: TObject);
+    procedure FormPaint(Sender: TObject);
+    procedure Timer1Timer(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    hrc:HGLRC; // Дописать строчку "hrc:HGLRC" в раздел "private"
+    DC : HDC;  // И еще одну строчку (Device Context)
+  end;
+
+  procedure setParams(lCC,lSpC,spLKC,tPC, spBLcC, spBLsC: integer);
+  procedure addToLogLK(t:real;p,s: integer;pBL,sBL : integer);
+  function getValSp(tm:real):real;
+  function speedToGL(speed : real):Single;
+  function getVal(tm:real):real;
+  function FloatMod(a,b:real) : real;
+  function getValSpBL(tm:real):real;
+  function getValBL(tm:real):real;
+  function encoderToGrad(v:real):real;
+var
+  Form2: TForm2;
+  // длина цилиндра
+  lC : integer;
+  // длина вылета
+  lSp : integer;
+  // время паузы
+  tP : real;
+  // время торможения
+  tSp : real;
+  // скорость на цилиндре
+  spLK : integer;
+  // ускорение каретки
+  ac : real;
+  // время на виток
+  tW : real = 0.1;
+  // скорость баллона на цилиндре
+  spBLc : integer;
+  // скорость баллона на цилиндре
+  spBLs : integer;
+  T1,T2,T3,T4,T5,T6,T7,T8 : real;
+
+  cAngle : real;
+  sAngle : real;
+
+  logPosLk : array[1..MAX_LENGTH] of integer;
+  logSpeedLk  : array[1..MAX_LENGTH] of integer;
+  logTmLK : array[1..MAX_LENGTH] of real;
+  logLkCnt : integer = 0;
+  logPosBL : array[1..MAX_LENGTH] of integer;
+  logSpeedBL  : array[1..MAX_LENGTH] of integer;
+
+  posLK, posTK, posBL : integer;
+  posStartLK : integer = 0;
+  posStartBL : integer = 0;
+  posStartTK : integer = 0;
+  speedStarLK,speedStarBL, speedStarTK : integer;
+  speedLK,speedBL, speedTK : integer;
+  directBL,directTK,directLK : integer;
+  posStarBL, posStarTK, posStarLK : integer;
+
+
+  tmWind : real = 0;
+
+  windAngle : real = 0;
+
+  f : textfile;
+  prevT : real = 0;
+implementation
+
+{$R *.dfm}
+
+function encoderToGrad(v:real):real;
+begin
+  result := round( (v/4096*360)*100)/100;
+end;
+
+procedure addToLogLK(t: real;p,s: integer;pBL,sBL : integer);
+begin
+   if logLkCnt<MAX_LENGTH-1 then
+   begin
+     inc(logLkCnt);
+     logPosLk[logLkCnt] := p;
+     logSpeedLk[logLkCnt] := s;
+     logTmLK[logLkCnt] := t;
+     logPosBL[logLkCnt] := pBL;
+     logSpeedBL[logLkCnt] := sBL;
+   end
+   else
+    logLkCnt := 0;
+end;
+
+function timeToGL(pos : real):Single;
+begin
+ result := (1/tW*pos - 1)*0.8;
+end;
+
+function timeToGLBL(pos : real):Single;
+begin
+ result := (1/tW*pos)*0.8;
+end;
+
+function speedToGLBL(speed : real):Single;
+var i : integer;
+begin
+ result := (1/((spBLc+spBLs)/2)*speed-1)*0.8;
+end;
+
+function posToGL(val : real):Single;
+begin
+ result := (1.5/(lC+2*lSp)*val-0.5)*0.8;
+end;
+
+function posToGLBL(val : real):Single;
+begin
+ result := (2/windAngle*val-1)*0.8;
+end;
+
+
+function speedToGL(speed : real):Single;
+var i : integer;
+begin
+ result := (1/spLK*speed)*0.8;
+ if result <0 then
+   i := 1;
+end;
+
+procedure myVertex2f(x,y : real);
+begin
+ glVertex2f(timeToGL(x),
+            posToGL(y));
+end;
+
+procedure myVertexSpeed2f(x,y : real);
+begin
+ glVertex2f(timeToGL(x),
+            speedToGL(y));
+end;
+
+procedure myVertex2fBL(x,y : real);
+begin
+ glVertex2f(timeToGL(x)+0.9,
+            posToGLBL(y));
+end;
+
+procedure myVertexSpeed2fBL(x,y : real);
+begin
+ glVertex2f(timeToGL(x)+0.9,
+            speedToGLBL(y));
+end;
+
+function getValSpBL(tm:real):real;
+begin
+  if ( (tm>=0)and (tm<T1) ) or
+     ( (tm>=T1+T2+T3+T4) and (tm <T1+T2+T3+T4+T5)) then
+     result := spBLc
+  else
+     result := spBLs;
+end;
+
+function getValBL(tm:real):real;
+var t : real;
+    t0 : real;
+begin
+ result := 0;
+ t := 0;
+ if (tm>=t) then
+ begin
+    result := result + 0;
+    if tm<T1 then
+      result := result + (tm-0)*spBLc;
+ end;
+ t := t + T1;
+ if (tm>=t) then
+ begin
+    result := result + T1*spBLc;
+    if tm<t + T2 then
+      result := result + (tm-t)*spBLs;
+ end;
+ t := t + T2;
+ if (tm>=t) then
+ begin
+    result := result + T2*spBLs;
+    if tm<t + T3 then
+      result := result + (tm-t)*spBLs;
+ end;
+ t := t + T3;
+ if (tm>=t) then
+ begin
+    result := result + T3*spBLs;
+    if tm<t + T4 then
+      result := result + (tm-t)*spBLs;
+ end;
+ t := t + T4;
+ if (tm>=t) then
+ begin
+    result := result + T4*spBLs;
+    if tm<t + T5 then
+      result := result + (tm-t)*spBLc;
+ end;
+ t := t + T5;
+ if (tm>=t) then
+ begin
+    result := result + T5*spBLc;
+    if tm<t + T6 then
+      result := result + (tm-t)*spBLs;
+ end;
+ t := t + T6;
+ if (tm>=t) then
+ begin
+    result := result + T6*spBLs;
+    if tm<t + T7 then
+      result := result + (tm-t)*spBLs;
+ end;
+ t := t + T7;
+ if (tm>=t) then
+ begin
+    result := result + T7*spBLs;
+    if tm<t + T8 then
+      result := result + (tm-t)*spBLs;
+ end;
+end;
+
+
+function getValSp(tm:real):real;
+var t : real;
+    t0 : real;
+begin
+ result := 0;
+ t := 0;
+ if (tm>=0) and( tm<T1) then
+ begin
+    result := spLK;
+   // writeln('1 ',result);
+ end;
+ t := t + T1;
+ if (tm>=t) and (tm<t+T2) then
+ begin
+    result := spLk-ac*(tm-t);
+   // writeln('2 ',result);
+ end;
+ t := t + T2;
+ if (tm>=t) and (tm<t+T3) then
+ begin
+    result := 0;
+ end;
+ t := t + T3;
+ if (tm>=t) and (tm<t+T4) then
+ begin
+    result := -ac*(tm-t);
+ end;
+ t := t + T4;
+ if (tm>=t) and (tm<t+T5) then
+ begin
+    result := -spLK;
+ end;
+ t := t + T5;
+ if (tm>=t) and (tm<t+T6) then
+ begin
+    result := -spLK+ac*(tm-t);
+ end;
+ t := t + T6;
+ if (tm>=t) and (tm<t+T7) then
+ begin
+    result := 0;
+ end;
+ t := t + T7;
+ if (tm>=t) and (tm<t+T8) then
+ begin
+    result := ac*(tm-t);
+ end;
+end;
+
+function getVal(tm:real):real;
+var t : real;
+    t0 : real;
+begin
+ result := 0;
+ t := 0;
+ if (tm>=0) and( tm<T1) then
+ begin
+    result := spLK*(tm-t);
+   // writeln('1 ',result);
+ end;
+ t := t + T1;
+ if (tm>=t) and (tm<t+T2) then
+ begin
+    result := spLk*(tm-t)-ac*(tm-t)*(tm-t)/2+lC;
+   // writeln('2 ',result);
+ end;
+ t := t + T2;
+ if (tm>=t) and (tm<t+T3) then
+ begin
+    result := lC+lSp;
+ end;
+ t := t + T3;
+ if (tm>=t) and (tm<t+T4) then
+ begin
+    result := lC+lSp-ac*(tm-t)*(tm-t)/2;
+ end;
+ t := t + T4;
+ if (tm>=t) and (tm<t+T5) then
+ begin
+    result := lC-spLK*(tm-t);
+ end;
+ t := t + T5;
+ if (tm>=t) and (tm<t+T6) then
+ begin
+    result := -spLK*(tm-t)+ac*(tm-t)*(tm-t)/2;
+ end;
+ t := t + T6;
+ if (tm>=t) and (tm<t+T7) then
+ begin
+    result := -lSp;
+ end;
+ t := t + T7;
+ if (tm>=t) and (tm<t+T8) then
+ begin
+    result := -lSp + ac*(tm-t)*(tm-t)/2;
+ end;
+end;
+
+
+procedure setParams(lCC,lSpC,spLKC,tPC, spBLcC, spBLsC: integer);
+begin
+  // длина цилиндра
+  lC := lCC;
+  // длина вылета
+  lSp := lSpC;
+  // время паузы
+  tP := tPC/1000;
+  // скорость на цилиндре
+  spLK := spLKC;
+  // время торможения
+  tSp := 2*lSp/spLK;
+  // ускорение
+  ac := spLK/tSp;
+  // скорость баллона на цилиндре
+  spBLc := spBLcC;
+  // скорость баллона на цилиндре
+  spBLs := spBLsC;
+  // время на участки
+  T1 := lC/spLK;
+  T2 := tSp;
+  T3 := tP;
+  T4 := tSp;
+  T5 := lC/spLK;
+  T6 := tSp;
+  T7 := tP;
+  T8 := tSp;
+  // время на виток
+  tW := T1+T2+T3+T4+T5+T6+T7+T8;
+  // угол на один виток
+  windAngle := (T1+T5)*spBLc+(T2+T3+T4+T6+T7+T8)*spBLs;
+  sAngle := (T2+T3+T4)*spBls;
+  cAngle := T1*spBLc;
+end;
+
+function FloatDiv(a,b: real):real;
+begin
+   result := trunc(a/b);
+end;
+
+
+function FloatMod(a,b:real) : real;
+begin
+  result := a-b*floatDiv(a,b);
+end;
+
+
+procedure SetDCPixelFormat (hdc : HDC);     // Это процедура задания формата пикселей
+var pfd : TPixelFormatDescriptor;           // Ее нужно полностью написать самому
+    nPixelFormat : Integer;
+begin
+ FillChar (pfd, SizeOf (pfd), 0);
+ // Следующие строки разрешают рисование в окне, включают поддержку видеокартой режима
+ // OpenGL и включают двойную буферизацию (чтобы изображение не моргало)
+ pfd.dwFlags  := PFD_DRAW_TO_WINDOW or PFD_SUPPORT_OPENGL or PFD_DOUBLEBUFFER;
+ nPixelFormat := ChoosePixelFormat (hdc, @pfd);
+ SetPixelFormat (hdc, nPixelFormat, @pfd);
+end;
+
+procedure TForm2.FormCreate(Sender: TObject);
+begin
+  DC := GetDC (Handle);                   // Получили контекст устройства
+  SetDCPixelFormat(DC);                   // Установили формат пикселей
+ // hrc := wglCreateContext(DC);            // Создали указатель на контекст окна формы
+ // wglMakeCurrent(DC, hrc);                // Сделали форму текущим устройством рисования
+  hrc := wglCreateContext(Form2.DC);
+  wglMakeCurrent(Form2.DC, Form2.hrc);
+
+end;
+
+
+procedure TForm2.FormPaint(Sender: TObject);
+var i : integer;
+  tmp : integer;
+
+begin
+  glViewPort(0,0,ClientWidth,ClientHeight); // Указываем, какая часть экрана будет
+           // использоваться для отображения "картинки" OpenGL (сейчас - весь экран)
+  glClearColor(0.2,0.2,1.0,1);  // Задаем цвет очистки экрана (как яркости RGB, от 0 до 1)
+  glClear(GL_COLOR_BUFFER_BIT+GL_DEPTH_BUFFER_BIT);    // Очищаем буфер цвета и Z-буфер
+  glEnable(GL_DEPTH_TEST);              // Включаем режим отслеживания глубины объектов
+  glLoadIdentity;
+
+  glDisable(GL_DEPTH_TEST);
+  glLineWidth(3);
+  glColor3f(0.8,1,0.8);
+  // задания LK
+  glBegin(GL_LINE_STRIP);
+  for i:= 1 to round(tW*1000)-1 do
+  begin
+    myVertex2f( i/1000,getVal(i/1000));
+  end;
+  glEnd;
+  glBegin(GL_LINE_STRIP);
+  glColor3f(1,0.8,0.8);
+  for i := 1 to round(tW*1000)-1 do
+    myVertexSpeed2f( i/1000,getValSp(i/1000));
+  glEnd;
+  // задания BL
+  glColor3f(0.8,1,0.8);
+  glBegin(GL_LINE_STRIP);
+  for i:= 1 to round(tW*1000)-1 do
+  begin
+    myVertex2fBL( i/1000,getValBL(i/1000));
+  end;
+  glEnd;
+  glBegin(GL_LINE_STRIP);
+  glColor3f(1,0.8,0.8);
+  for i := 1 to round(tW*1000)-1 do
+    myVertexSpeed2fBL( i/1000,getValSpBL(i/1000));
+  glEnd;
+  // текущее задание LK
+  glLineWidth(1);
+  glPointSize(5);
+  glBegin(GL_POINTS);
+    glColor3f(0,0.6,0);
+    myVertex2f(FloatMod(tmWind,tW),getVal(FloatMod(tmWind,tW)));
+    glColor3f(0.6,0,0);
+    myVertexSpeed2f(FloatMod(tmWind,tW),getValSp(FloatMod(tmWind,tW)));
+  // текущее задание BL
+
+    glColor3f(0,0.6,0);
+    myVertex2fBL(FloatMod(tmWind,tW),getValBL(FloatMod(tmWind,tW)));
+    glColor3f(0.6,0,0);
+    myVertexSpeed2fBL(FloatMod(tmWind,tW),getValSpBL(FloatMod(tmWind,tW)));
+  glEnd;
+  glPointSize(1);
+  // реальные траектории LK
+  glColor3f(1,0,0);
+  glBegin(GL_LINE_STRIP);
+  for i := 1 to logLkCnt do
+  begin
+    if abs(prevT-FloatMod(logTmLK[i],tW))>3 then
+    begin
+      glEnd;
+      glBegin(GL_LINE_STRIP);
+    end;
+    prevT := FloatMod(logTmLK[i],tW);
+    myVertexSpeed2f( FloatMod(logTmLK[i],tW),logSpeedLk [i]);
+  end;
+  glEnd;
+  glColor3f(0,1,0);
+  glBegin(GL_LINE_STRIP);
+  for i := 1 to logLkCnt do
+  begin
+    if abs(prevT-FloatMod(logTmLK[i],tW))>3 then
+    begin
+      glEnd;
+      glBegin(GL_LINE_STRIP);
+    end;
+    prevT := FloatMod(logTmLK[i],tW);
+    myVertex2f( FloatMod(logTmLK[i],tW),logPosLk [i]);
+  end;
+  glEnd;
+  // реальные траектории BL
+    glColor3f(1,0,0);
+  glBegin(GL_LINE_STRIP);
+  for i := 1 to logLkCnt do
+  begin
+      if abs(prevT-FloatMod(logTmLK[i],tW))>3 then
+    begin
+      glEnd;
+      glBegin(GL_LINE_STRIP);
+    end;
+    prevT := FloatMod(logTmLK[i],tW);
+    myVertexSpeed2fBL( FloatMod(logTmLK[i],tW),logSpeedBL[i]);
+  end;
+  glEnd;
+  glColor3f(0,1,0);
+  glBegin(GL_LINE_STRIP);
+  for i := 1 to logLkCnt do
+    {if abs(prevT-FloatMod(logTmLK[i],tW))>5 then
+    begin
+      glEnd;
+      glBegin(GL_LINE_STRIP);
+    end;
+    prevT := FloatMod(logTmLK[i],tW);}
+    myVertex2fBL( FloatMod(logTmLK[i],tW),logPosBL [i]);
+  glEnd;
+  SwapBuffers(Form2.DC);           // Меняем местами буферы (для более гадкой анимации)
+
+end;
+
+procedure TForm2.Timer1Timer(Sender: TObject);
+begin
+  InvalidateRect(form2.Handle,nil,False); // Если необходимо перерисовывать окно по таймеру
+end;
+
+end.
+
